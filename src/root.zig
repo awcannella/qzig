@@ -1,6 +1,11 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 
+pub const math = struct {
+    pub const Complex = @import("math/complex.zig").Complex;
+    pub const Vector = @import("math/vector.zig").Vector;
+};
+
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you
     // are implementing gzip, then only the compressed bytes should be sent to
@@ -12,12 +17,4 @@ pub fn bufferedPrint() !void {
     try stdout.print("Run `zig build test` to run the tests.\n", .{});
 
     try stdout.flush(); // Don't forget to flush!
-}
-
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
-
-test "basic add functionality" {
-    try std.testing.expect(add(3, 7) == 10);
 }

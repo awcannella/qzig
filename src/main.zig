@@ -1,27 +1,36 @@
 const std = @import("std");
-const qzig = @import("qzig");
+const qzig = @import("root.zig"); // your library root
 
 pub fn main() !void {
-    // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-    try qzig.bufferedPrint();
-}
+    var gpa = std.heap.page_allocator;
 
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+    // ------------------------
+    // Test Vector<f64>
+    // ------------------------
+    var vf64 = try qzig.math.Vector(f64).init(&gpa, 2);
+    defer vf64.deinit();
 
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
+    try vf64.push(10.0);
+    try vf64.push(20.0);
+    std.debug.print("vf64 length = {}\n", .{vf64.getLen()});
+    std.debug.print("vf64[0] = {}, vf64[1] = {}\n", .{ vf64.data[0], vf64.data[1] });
+
+    const popped_f64 = try vf64.pop();
+    std.debug.print("Popped from vf64: {}\n", .{popped_f64});
+    std.debug.print("vf64 length now = {}\n\n", .{vf64.getLen()});
+
+    // ------------------------
+    // Test Vector<Complex>
+    // ------------------------
+    var vc = try qzig.math.Vector(qzig.math.Complex).init(&gpa, 2);
+    defer vc.deinit();
+
+    try vc.push(qzig.math.Complex.init(1, 1));
+    try vc.push(qzig.math.Complex.init(2, 2));
+    std.debug.print("vc length = {}\n", .{vc.getLen()});
+    std.debug.print("vc[0] = {} + {}i, vc[1] = {} + {}i\n", .{ vc.data[0].re, vc.data[0].im, vc.data[1].re, vc.data[1].im });
+
+    const popped_c = try vc.pop();
+    std.debug.print("Popped from vc: {} + {}i\n", .{ popped_c.re, popped_c.im });
+    std.debug.print("vc length now = {}\n", .{vc.getLen()});
 }
