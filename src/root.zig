@@ -1,10 +1,15 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 
-pub const math = struct {
-    pub const Complex = @import("math/complex.zig").Complex;
-    pub const Vector = @import("math/vector.zig").Vector;
+pub const core = struct {
+    pub const Complex = @import("core/complex.zig").Complex;
+    pub const Vector = @import("core/vector.zig").Vector;
+    pub const Matrix = @import("core/matrix.zig").Matrix;
 };
+
+pub const Complex = core.Complex;
+pub const Vector = core.Vector;
+pub const Matrix = core.Matrix;
 
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you

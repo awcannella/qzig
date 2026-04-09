@@ -18,7 +18,7 @@ pub const Complex = struct {
     pub fn mul(self: Complex, other: Complex) Complex {
         return .{
             .re = self.re * other.re - self.im * other.im,
-            .im = self.re * other.im - self.im * other.re,
+            .im = self.re * other.im + self.im * other.re,
         };
     }
 

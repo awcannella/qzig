@@ -2,35 +2,102 @@ const std = @import("std");
 const qzig = @import("root.zig"); // your library root
 
 pub fn main() !void {
-    var gpa = std.heap.page_allocator;
+    var allocator = std.heap.page_allocator;
+    std.debug.print("==== QZig Matrix Core Demo ====\n\n", .{});
 
-    // ------------------------
-    // Test Vector<f64>
-    // ------------------------
-    var vf64 = try qzig.math.Vector(f64).init(&gpa, 2);
-    defer vf64.deinit();
+    // ============================================================
+    // 1. CREATE MATRICES
+    // ============================================================
+    std.debug.print("1. Creating matrices...\n", .{});
 
-    try vf64.push(10.0);
-    try vf64.push(20.0);
-    std.debug.print("vf64 length = {}\n", .{vf64.getLen()});
-    std.debug.print("vf64[0] = {}, vf64[1] = {}\n", .{ vf64.data[0], vf64.data[1] });
+    var A = try qzig.Matrix.zeros(&allocator, 2, 2);
+    var B = try qzig.Matrix.zeros(&allocator, 2, 2);
 
-    const popped_f64 = try vf64.pop();
-    std.debug.print("Popped from vf64: {}\n", .{popped_f64});
-    std.debug.print("vf64 length now = {}\n\n", .{vf64.getLen()});
+    // A = [1 2; 3 4]
+    try A.set(0, 0, qzig.Complex{ .re = 1, .im = 0 });
+    try A.set(0, 1, qzig.Complex{ .re = 2, .im = 0 });
+    try A.set(1, 0, qzig.Complex{ .re = 3, .im = 0 });
+    try A.set(1, 1, qzig.Complex{ .re = 4, .im = 0 });
 
-    // ------------------------
-    // Test Vector<Complex>
-    // ------------------------
-    var vc = try qzig.math.Vector(qzig.math.Complex).init(&gpa, 2);
-    defer vc.deinit();
+    // B = [5 6; 7 8]
+    try B.set(0, 0, qzig.Complex{ .re = 5, .im = 0 });
+    try B.set(0, 1, qzig.Complex{ .re = 6, .im = 0 });
+    try B.set(1, 0, qzig.Complex{ .re = 7, .im = 0 });
+    try B.set(1, 1, qzig.Complex{ .re = 8, .im = 0 });
 
-    try vc.push(qzig.math.Complex.init(1, 1));
-    try vc.push(qzig.math.Complex.init(2, 2));
-    std.debug.print("vc length = {}\n", .{vc.getLen()});
-    std.debug.print("vc[0] = {} + {}i, vc[1] = {} + {}i\n", .{ vc.data[0].re, vc.data[0].im, vc.data[1].re, vc.data[1].im });
+    printMatrix("Matrix A", &A);
+    printMatrix("Matrix B", &B);
 
-    const popped_c = try vc.pop();
-    std.debug.print("Popped from vc: {} + {}i\n", .{ popped_c.re, popped_c.im });
-    std.debug.print("vc length now = {}\n", .{vc.getLen()});
+    // ============================================================
+    // 2. ADDITION
+    // ============================================================
+    std.debug.print("\n2. Matrix Addition (A + B)\n", .{});
+    var C = try A.add(&B, &allocator);
+    printMatrix("A + B", &C);
+
+    // Expected:
+    // [6 8; 10 12]
+
+    // ============================================================
+    // 3. SUBTRACTION
+    // ============================================================
+    std.debug.print("\n3. Matrix Subtraction (A - B)\n", .{});
+    var D = try A.sub(&B, &allocator);
+    printMatrix("A - B", &D);
+
+    // Expected:
+    // [-4 -4; -4 -4]
+
+    // ============================================================
+    // 4. SCALAR MULTIPLICATION
+    // ============================================================
+    std.debug.print("\n4. Scalar Multiplication (A * 2)\n", .{});
+    const scalar = qzig.Complex{ .re = 2, .im = 0 };
+    A.scalarMul(scalar);
+    printMatrix("A * 2", &A);
+
+    // ============================================================
+    // 5. MATRIX MULTIPLICATION
+    // ============================================================
+    std.debug.print("\n5. Matrix Multiplication (A * B)\n", .{});
+
+    // Reset A to original values for correctness
+    try A.set(0, 0, qzig.Complex{ .re = 1, .im = 0 });
+    try A.set(0, 1, qzig.Complex{ .re = 2, .im = 0 });
+    try A.set(1, 0, qzig.Complex{ .re = 3, .im = 0 });
+    try A.set(1, 1, qzig.Complex{ .re = 4, .im = 0 });
+
+    var E = try A.mul(&B, &allocator);
+    printMatrix("A * B", &E);
+
+    // Expected:
+    // [19 22; 43 50]
+
+    // ============================================================
+    // 6. IDENTITY MATRIX TEST
+    // ============================================================
+    std.debug.print("\n6. Identity Matrix Test\n", .{});
+
+    var I = try qzig.Matrix.identity(&allocator, 2);
+    printMatrix("Identity Matrix I", &I);
+
+    var F = try A.mul(&I, &allocator);
+    printMatrix("A * I (should equal A)", &F);
+
+    std.debug.print("\n==== Demo Complete ====\n", .{});
+}
+
+// ============================================================
+// HELPER FUNCTION: PRINT MATRIX
+// ============================================================
+fn printMatrix(name: []const u8, m: *qzig.Matrix) void {
+    std.debug.print("{s}:\n", .{name});
+
+    for (0..m.rows) |i| {
+        for (0..m.cols) |j| {
+            const val = m.getUnchecked(i, j);
+            std.debug.print("{d:.2} ", .{val.re});
+        }
+        std.debug.print("\n", .{});
+    }
 }
