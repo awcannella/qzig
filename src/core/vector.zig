@@ -33,12 +33,8 @@ pub fn Vector(comptime T: type) type {
         // --------------------------
 
         // Get the current number of elements
-        pub fn getLen(self: *Vector(T)) usize {
+        pub inline fn getLen(self: *Vector(T)) usize {
             return self.len;
-        }
-
-        pub fn getCapacity(self: *Vector(T)) usize {
-            return self.capacity;
         }
 
         pub fn isEmpty(self: *Vector(T)) bool {
@@ -87,16 +83,14 @@ pub fn Vector(comptime T: type) type {
         pub fn reserve(self: *Vector(T), new_capacity: usize) !void {
             if (new_capacity <= self.capacity) return;
             self.data = try self.allocator.realloc(self.data, self.len);
-            self.capacity = self.len;
+            self.capacity = new_capacity;
         }
 
         pub fn resize(self: *Vector(T), new_len: usize, default_value: T) !void {
             if (new_len > self.capacity) try self.reserve(new_len);
             if (new_len > self.len) {
                 // initialize new elements with default_value
-                for (self.len..new_len) |i| {
-                    self.data[i] = default_value;
-                }
+                for (self.len..new_len) |i| self.data[i] = default_value;
             }
             self.len = new_len;
         }
@@ -125,7 +119,9 @@ pub fn Vector(comptime T: type) type {
 
         pub fn swap(self: *Vector(T), other: *Vector(T)) !void {
             if (self.len != other.len) return error.LengthMismatch;
-            for (0..self.len) |i| {
+            // Inline hot loop for small vectors
+            var i: usize = 0;
+            while (i < self.len) : (i += 1) {
                 const tmp = self.data[i];
                 self.data[i] = other.data[i];
                 other.data[i] = tmp;
@@ -134,7 +130,9 @@ pub fn Vector(comptime T: type) type {
 
         pub fn assign(self: *Vector(T), other: *Vector(T)) !void {
             try self.resize(other.len, undefined);
-            for (0..other.len) |i| {
+            // Hot loop without iterator for performance
+            var i: usize = 0;
+            while (i < other.len) : (i += 1) {
                 self.data[i] = other.data[i];
             }
         }

@@ -1,103 +1,89 @@
 const std = @import("std");
-const qzig = @import("root.zig"); // your library root
+const qzig = @import("root.zig");
 
 pub fn main() !void {
     var allocator = std.heap.page_allocator;
-    std.debug.print("==== QZig Matrix Core Demo ====\n\n", .{});
 
-    // ============================================================
-    // 1. CREATE MATRICES
-    // ============================================================
-    std.debug.print("1. Creating matrices...\n", .{});
+    const N: usize = 5;
 
-    var A = try qzig.Matrix.zeros(&allocator, 2, 2);
-    var B = try qzig.Matrix.zeros(&allocator, 2, 2);
+    var A = try qzig.Matrix.zeros(&allocator, N, N);
+    var B = try qzig.Matrix.zeros(&allocator, N, N);
+    var C = try qzig.Matrix.zeros(&allocator, N, N);
+    var C_ref = try qzig.Matrix.zeros(&allocator, N, N);
 
-    // A = [1 2; 3 4]
-    try A.set(0, 0, qzig.Complex{ .re = 1, .im = 0 });
-    try A.set(0, 1, qzig.Complex{ .re = 2, .im = 0 });
-    try A.set(1, 0, qzig.Complex{ .re = 3, .im = 0 });
-    try A.set(1, 1, qzig.Complex{ .re = 4, .im = 0 });
+    defer {
+        allocator.free(A.data.data);
+        allocator.free(B.data.data);
+        allocator.free(C.data.data);
+        allocator.free(C_ref.data.data);
+    }
 
-    // B = [5 6; 7 8]
-    try B.set(0, 0, qzig.Complex{ .re = 5, .im = 0 });
-    try B.set(0, 1, qzig.Complex{ .re = 6, .im = 0 });
-    try B.set(1, 0, qzig.Complex{ .re = 7, .im = 0 });
-    try B.set(1, 1, qzig.Complex{ .re = 8, .im = 0 });
+    // =========================
+    // Initialize matrices
+    // =========================
+    for (0..N) |i| {
+        for (0..N) |j| {
+            const ii: isize = @intCast(i);
+            const jj: isize = @intCast(j);
 
-    printMatrix("Matrix A", &A);
-    printMatrix("Matrix B", &B);
-
-    // ============================================================
-    // 2. ADDITION
-    // ============================================================
-    std.debug.print("\n2. Matrix Addition (A + B)\n", .{});
-    var C = try A.add(&B, &allocator);
-    printMatrix("A + B", &C);
-
-    // Expected:
-    // [6 8; 10 12]
-
-    // ============================================================
-    // 3. SUBTRACTION
-    // ============================================================
-    std.debug.print("\n3. Matrix Subtraction (A - B)\n", .{});
-    var D = try A.sub(&B, &allocator);
-    printMatrix("A - B", &D);
-
-    // Expected:
-    // [-4 -4; -4 -4]
-
-    // ============================================================
-    // 4. SCALAR MULTIPLICATION
-    // ============================================================
-    std.debug.print("\n4. Scalar Multiplication (A * 2)\n", .{});
-    const scalar = qzig.Complex{ .re = 2, .im = 0 };
-    A.scalarMul(scalar);
-    printMatrix("A * 2", &A);
-
-    // ============================================================
-    // 5. MATRIX MULTIPLICATION
-    // ============================================================
-    std.debug.print("\n5. Matrix Multiplication (A * B)\n", .{});
-
-    // Reset A to original values for correctness
-    try A.set(0, 0, qzig.Complex{ .re = 1, .im = 0 });
-    try A.set(0, 1, qzig.Complex{ .re = 2, .im = 0 });
-    try A.set(1, 0, qzig.Complex{ .re = 3, .im = 0 });
-    try A.set(1, 1, qzig.Complex{ .re = 4, .im = 0 });
-
-    var E = try A.mul(&B, &allocator);
-    printMatrix("A * B", &E);
-
-    // Expected:
-    // [19 22; 43 50]
-
-    // ============================================================
-    // 6. IDENTITY MATRIX TEST
-    // ============================================================
-    std.debug.print("\n6. Identity Matrix Test\n", .{});
-
-    var I = try qzig.Matrix.identity(&allocator, 2);
-    printMatrix("Identity Matrix I", &I);
-
-    var F = try A.mul(&I, &allocator);
-    printMatrix("A * I (should equal A)", &F);
-
-    std.debug.print("\n==== Demo Complete ====\n", .{});
-}
-
-// ============================================================
-// HELPER FUNCTION: PRINT MATRIX
-// ============================================================
-fn printMatrix(name: []const u8, m: *qzig.Matrix) void {
-    std.debug.print("{s}:\n", .{name});
-
-    for (0..m.rows) |i| {
-        for (0..m.cols) |j| {
-            const val = m.getUnchecked(i, j);
-            std.debug.print("{d:.2} ", .{val.re});
+            A.setUnchecked(i, j, .{ .re = @floatFromInt(ii + jj), .im = 0 });
+            B.setUnchecked(i, j, .{ .re = @floatFromInt(ii - jj), .im = 0 });
         }
-        std.debug.print("\n", .{});
+    }
+
+    // =========================
+    // SIMD workspace (needed for mul_into)
+    // =========================
+    const Vec = @Vector(4, f64);
+    const nB = (N + 3) / 4;
+
+    var workspace = qzig.Matrix.SimdWorkspace{
+        .a_re = try allocator.alloc(Vec, N * nB),
+        .a_im = try allocator.alloc(Vec, N * nB),
+        .b_re = try allocator.alloc(Vec, N * nB),
+        .b_im = try allocator.alloc(Vec, N * nB),
+    };
+
+    defer {
+        allocator.free(workspace.a_re);
+        allocator.free(workspace.a_im);
+        allocator.free(workspace.b_re);
+        allocator.free(workspace.b_im);
+    }
+
+    // =========================
+    // Compute reference (naive)
+    // =========================
+    try A.mul_naive_into(&B, &C_ref);
+
+    // =========================
+    // Compute with dispatcher
+    // =========================
+    try A.mul_into(&B, &C, &workspace);
+
+    // =========================
+    // Compare results
+    // =========================
+    var ok = true;
+
+    for (0..N) |i| {
+        for (0..N) |j| {
+            const a = C.getUnchecked(i, j);
+            const b = C_ref.getUnchecked(i, j);
+
+            const dr = a.re - b.re;
+            const di = a.im - b.im;
+
+            if ((if (dr < 0) -dr else dr) > 1e-9 or
+                (if (di < 0) -di else di) > 1e-9)
+            {
+                ok = false;
+            }
+        }
+    }
+    if (ok) {
+        std.debug.print("✅ mul_into is correct\n", .{});
+    } else {
+        std.debug.print("❌ mismatch detected\n", .{});
     }
 }
