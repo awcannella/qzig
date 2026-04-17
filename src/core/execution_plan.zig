@@ -1,30 +1,29 @@
 const std = @import("std");
-const Complex = @import("complex.zig").Complex;
+const GateType = @import("gate.zig").GateType;
 
-pub const Op = union(enum) {
-    mul_2x2: struct {
-        a: usize,
-        b: usize,
-        out: usize,
-    },
-
-    mul_4x4: struct {
-        a: usize,
-        b: usize,
-        out: usize,
-    },
-
-    gemm_small: struct {
-        m: usize,
-        n: usize,
-        k: usize,
-    },
+pub const Op = struct {
+    gate: GateType,
+    target: usize,
+    control: ?usize = null,
+    target2: ?usize = null,
 };
 
 pub const ExecutionPlan = struct {
-    ops: []Op,
+    allocator: std.mem.Allocator,
+    ops: std.ArrayListUnmanaged(Op),
 
-    pub fn init(ops: []Op) ExecutionPlan {
-        return .{ .ops = ops };
+    pub fn init(allocator: std.mem.Allocator) ExecutionPlan {
+        return .{
+            .allocator = allocator,
+            .ops = .{},
+        };
+    }
+
+    pub fn deinit(self: *ExecutionPlan) void {
+        self.ops.deinit(self.allocator);
+    }
+
+    pub fn add_op(self: *ExecutionPlan, op: Op) !void {
+        try self.ops.append(self.allocator, op);
     }
 };

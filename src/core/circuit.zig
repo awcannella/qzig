@@ -1,51 +1,67 @@
 const std = @import("std");
-const Gate = @import("gate.zig").Gate;
+const GateType = @import("gate.zig").GateType;
 const ExecutionPlan = @import("execution_plan.zig").ExecutionPlan;
 const Op = @import("execution_plan.zig").Op;
 
 pub const Circuit = struct {
-    gates: []Gate,
-    len: usize,
+    ops: std.ArrayListUnmanaged(Op),
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, capacity: usize) !Circuit {
+    pub fn init(allocator: std.mem.Allocator) Circuit {
         return .{
-            .gates = try allocator.alloc(Gate, capacity),
-            .len = 0,
             .allocator = allocator,
+            .ops = .{},
         };
     }
 
     pub fn deinit(self: *Circuit) void {
-        self.allocator.free(self.gates);
+        self.ops.deinit(self.allocator);
     }
 
-    pub fn add(self: *Circuit, g: Gate) void {
-        self.gates[self.len] = g;
-        self.len += 1;
+    pub fn add_h(self: *Circuit, target: usize) !void {
+        try self.ops.append(self.allocator, .{
+            .gate = .H,
+            .target = target,
+        });
+    }
+
+    pub fn add_x(self: *Circuit, target: usize) !void {
+        try self.ops.append(self.allocator, .{
+            .gate = .X,
+            .target = target,
+        });
+    }
+
+    pub fn add_z(self: *Circuit, target: usize) !void {
+        try self.ops.append(self.allocator, .{
+            .gate = .Z,
+            .target = target,
+        });
+    }
+
+    pub fn add_cnot(self: *Circuit, control: usize, target: usize) !void {
+        try self.ops.append(self.allocator, .{
+            .gate = .CNOT,
+            .target = target,
+            .control = control,
+        });
+    }
+
+    pub fn add_swap(self: *Circuit, a: usize, b: usize) !void {
+        try self.ops.append(self.allocator, .{
+            .gate = .SWAP,
+            .target = a,
+            .target2 = b,
+        });
     }
 
     pub fn compile(self: *Circuit, allocator: std.mem.Allocator) !ExecutionPlan {
-        var ops = try allocator.alloc(Op, self.len);
+        var plan = ExecutionPlan.init(allocator);
 
-        for (self.gates[0..self.len], 0..) |g, i| {
-            ops[i] = try gateToOp(g);
+        for (self.ops.items) |op| {
+            try plan.add_op(op);
         }
 
-        return ExecutionPlan.init(ops);
-    }
-
-    fn gateToOp(g: Gate) !Op {
-        return switch (g.kind) {
-            .custom_2x2 => .{
-                .mul_2x2 = .{
-                    .a = g.target0,
-                    .b = g.target0,
-                    .out = g.target0,
-                },
-            },
-
-            else => @panic("unsupported gate"),
-        };
+        return plan;
     }
 };
