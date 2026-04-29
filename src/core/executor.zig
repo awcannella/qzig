@@ -1,141 +1,174 @@
 const std = @import("std");
-const ExecutionPlan = @import("execution_plan.zig").ExecutionPlan;
+
 const StateVector = @import("state_vector.zig").StateVector;
-const Complex = @import("complex.zig").Complex;
-const Op = @import("execution_plan.zig").Op;
+const KernelBlock = @import("kernel_block.zig").KernelBlock;
+
+const KernelTrace = @import("kernel_types.zig").KernelTrace;
+const PermWorkspace = @import("kernel_types.zig").PermWorkspace;
+
+//
+// =====================================================
+// MAIN EXECUTION ENTRY
+// =====================================================
+//
 
 pub fn execute(
     state: *StateVector,
-    plan: ExecutionPlan,
+    blocks: []const KernelBlock,
+    workspace: *PermWorkspace,
+    trace: *KernelTrace,
 ) void {
+    for (blocks) |b| {
+        switch (b.data) {
+            .perm => |p| {
+                trace.perm_ops += 1;
+                execute_perm(state, p, workspace);
+            },
 
-    // Apply each operation
-    for (plan.ops.items) |op| {
-        apply_op(state, op);
-    }
-}
+            .hadamard => |h| {
+                trace.hadamard_ops += h.targets.len;
+                execute_h(state, h);
+            },
 
-fn apply_op(state: *StateVector, op: Op) void {
-    switch (op.gate) {
-        .H => apply_h(state, op.target),
-        .X => apply_x(state, op.target),
-        .Z => apply_z(state, op.target),
+            .zphase => |z| {
+                trace.zphase_ops += z.targets.len;
+                execute_z(state, z);
+            },
 
-        .CNOT => apply_cnot(state, op.control.?, op.target),
-
-        .SWAP => apply_swap(state, op.target, op.target2.?),
-
-        else => unreachable,
-    }
-}
-
-fn apply_h(state: *StateVector, target: usize) void {
-    const len = state.len();
-    const stride = @as(usize, 1) << @as(u6, @intCast(target));
-
-    const inv_sqrt2: f64 = 0.7071067811865475;
-
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        // only process when target bit is 0
-        if ((i & stride) == 0) {
-            const j = i | stride;
-
-            const a = state.data[i];
-            const b = state.data[j];
-
-            // (a + b) / sqrt(2)
-            state.data[i] = Complex{
-                .re = (a.re + b.re) * inv_sqrt2,
-                .im = (a.im + b.im) * inv_sqrt2,
-            };
-
-            // (a-b) / sqrt(2)
-            state.data[j] = Complex{
-                .re = (a.re - b.re) * inv_sqrt2,
-                .im = (a.im - b.im) * inv_sqrt2,
-            };
+            .scalar => {
+                trace.scalar_ops += 1;
+            },
         }
     }
 }
 
-fn apply_x(state: *StateVector, target: usize) void {
+//
+// =====================================================
+// HADAMARD
+// =====================================================
+//
+
+fn execute_h(state: *StateVector, h: KernelBlock.Hadamard) void {
     const len = state.len();
-    const stride = @as(usize, 1) << @as(u6, @intCast(target));
+    const inv = 0.7071067811865475;
 
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        if ((i & stride) == 0) {
-            const j = i | stride;
+    for (h.targets) |q| {
+        const stride = @as(usize, 1) << @intCast(q);
+        const step = stride << 1;
 
-            const tmp = state.data[i];
-            state.data[i] = state.data[j];
-            state.data[j] = tmp;
-        }
-    }
-}
+        var base: usize = 0;
+        while (base < len) : (base += step) {
+            var j: usize = 0;
+            while (j < stride) : (j += 1) {
+                const a = base + j;
+                const b = a + stride;
 
-fn apply_cnot(state: *StateVector, control: usize, target: usize) void {
-    const len = state.len();
+                const ar = state.re[a];
+                const ai = state.im[a];
+                const br = state.re[b];
+                const bi = state.im[b];
 
-    const c_mask: usize = @as(usize, 1) << @intCast(control);
-    const t_mask: usize = @as(usize, 1) << @intCast(target);
+                state.re[a] = (ar + br) * inv;
+                state.im[a] = (ai + bi) * inv;
 
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-
-        // only act when control bit is 1
-        if ((i & c_mask) != 0) {
-
-            // flip target bit
-            const j = i ^ t_mask;
-
-            // avoid double-swapping
-            if (i < j) {
-                const tmp = state.data[i];
-                state.data[i] = state.data[j];
-                state.data[j] = tmp;
+                state.re[b] = (ar - br) * inv;
+                state.im[b] = (ai - bi) * inv;
             }
         }
     }
 }
 
-fn apply_z(state: *StateVector, target: usize) void {
+//
+// =====================================================
+// Z PHASE
+// =====================================================
+//
+
+fn execute_z(state: *StateVector, z: KernelBlock.ZPhase) void {
     const len = state.len();
-    const mask: usize = @as(usize, 1) << @intCast(target);
 
     var i: usize = 0;
     while (i < len) : (i += 1) {
-        if ((i & mask) != 0) {
-            state.data[i].re *= -1;
-            state.data[i].im *= -1;
+        var flip = false;
+
+        for (z.targets) |q| {
+            if ((i & (@as(usize, 1) << @intCast(q))) != 0) {
+                flip = !flip;
+            }
+        }
+
+        if (flip) {
+            state.re[i] = -state.re[i];
+            state.im[i] = -state.im[i];
         }
     }
 }
 
-fn apply_swap(state: *StateVector, q1: usize, q2: usize) void {
-    const len = state.len();
+//
+// =====================================================
+// PERMUTATION (FIXED: NO perm_map)
+// =====================================================
+//
 
-    const m1 = @as(usize, 1) << @intCast(q1);
-    const m2 = @as(usize, 1) << @intCast(q2);
+fn apply_perm_ops(
+    i: usize,
+    x_masks: []const usize,
+    cnot_masks: []const KernelBlock.CNotMask,
+    swap_masks: []const KernelBlock.SwapMask,
+) usize {
+    var j = i;
 
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        const b1 = (i & m1) != 0;
-        const b2 = (i & m2) != 0;
+    // X flips
+    for (x_masks) |m| {
+        j ^= m;
+    }
+
+    // CNOT logic
+    for (cnot_masks) |mc| {
+        if ((j & mc.c) != 0) {
+            j ^= mc.t;
+        }
+    }
+
+    // SWAP logic
+    for (swap_masks) |ms| {
+        const b1 = (j & ms.m1) != 0;
+        const b2 = (j & ms.m2) != 0;
 
         if (b1 != b2) {
-            const j =
-                if (b1)
-                    (i & ~m1) | m2
-                else
-                    (i & ~m2) | m1;
-
-            if (i < j) {
-                const tmp = state.data[i];
-                state.data[i] = state.data[j];
-                state.data[j] = tmp;
-            }
+            j ^= (ms.m1 | ms.m2);
         }
     }
+
+    return j;
+}
+
+fn execute_perm(
+    state: *StateVector,
+    p: KernelBlock.Perm,
+    workspace: *PermWorkspace,
+) void {
+    const len = state.len();
+
+    const tmp_re = workspace.tmp_re;
+    const tmp_im = workspace.tmp_im;
+
+    std.debug.assert(tmp_re.len >= len);
+    std.debug.assert(tmp_im.len >= len);
+
+    var i: usize = 0;
+    while (i < len) : (i += 1) {
+        const j = apply_perm_ops(
+            i,
+            p.x_masks,
+            p.cnot_masks,
+            p.swap_masks,
+        );
+
+        tmp_re[j] = state.re[i];
+        tmp_im[j] = state.im[i];
+    }
+
+    std.mem.copyForwards(f64, state.re, tmp_re);
+    std.mem.copyForwards(f64, state.im, tmp_im);
 }

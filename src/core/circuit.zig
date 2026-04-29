@@ -3,10 +3,12 @@ const GateType = @import("gate.zig").GateType;
 const ExecutionPlan = @import("execution_plan.zig").ExecutionPlan;
 const Op = @import("execution_plan.zig").Op;
 
+// Circuit is a user manipulated dynamic list of quantum gate operations (Op structs)
 pub const Circuit = struct {
     ops: std.ArrayListUnmanaged(Op),
     allocator: std.mem.Allocator,
 
+    // constructs a new empty circuit object
     pub fn init(allocator: std.mem.Allocator) Circuit {
         return .{
             .allocator = allocator,
@@ -14,10 +16,12 @@ pub const Circuit = struct {
         };
     }
 
+    // frees all memory owned by the circuit from init
     pub fn deinit(self: *Circuit) void {
         self.ops.deinit(self.allocator);
     }
 
+    // Records an H gate operation applied to the target qubit
     pub fn add_h(self: *Circuit, target: usize) !void {
         try self.ops.append(self.allocator, .{
             .gate = .H,
@@ -25,6 +29,7 @@ pub const Circuit = struct {
         });
     }
 
+    // Records an X gate operation applied to the target qubit
     pub fn add_x(self: *Circuit, target: usize) !void {
         try self.ops.append(self.allocator, .{
             .gate = .X,
@@ -32,6 +37,7 @@ pub const Circuit = struct {
         });
     }
 
+    // Records a Z gate operation applied to the target qubit
     pub fn add_z(self: *Circuit, target: usize) !void {
         try self.ops.append(self.allocator, .{
             .gate = .Z,
@@ -39,6 +45,7 @@ pub const Circuit = struct {
         });
     }
 
+    // Records a CNOT operation that conditionally flips the target qubit based on the control qubit
     pub fn add_cnot(self: *Circuit, control: usize, target: usize) !void {
         try self.ops.append(self.allocator, .{
             .gate = .CNOT,
@@ -47,6 +54,7 @@ pub const Circuit = struct {
         });
     }
 
+    // records the SWAP gate's operation swapping qubits a and b
     pub fn add_swap(self: *Circuit, a: usize, b: usize) !void {
         try self.ops.append(self.allocator, .{
             .gate = .SWAP,
