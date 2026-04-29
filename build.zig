@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) void {
     // SINGLE SHARED LIBRARY MODULE
     // ----------------------------
     const qzig = b.addModule("qzig", .{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("lib.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "qzig",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
+            .root_source_file = b.path("main.zig"),
             .target = target,
             .optimize = optimize,
         }),
