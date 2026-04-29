@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const scaling = @import("benchmarks/scaling.zig");
+
 // =================
 // Core Benchmarking API
 // =================
