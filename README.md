@@ -1,6 +1,6 @@
-qzig is a quantum circuit simulation library built using the Zig programming language
+# qzig is a quantum circuit simulation library built using the Zig programming language
 
-Goals: 
+## Goals: 
   1. Implement basic quantum gate operations (Z, X, Hadamard, CNOT, SWAP)
   2. Support the application of these operations on multiple qubits
   3. Cleanly organize several layers of abstraction to separate the user interface programs (Circuit.zig) from the execution layers (executor.zig)
