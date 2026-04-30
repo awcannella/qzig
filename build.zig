@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "qzig",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/run_benchmark.zig"),
+            .root_source_file = b.path("examples/run_all.zig"),
             .target = target,
             .optimize = optimize,
         }),

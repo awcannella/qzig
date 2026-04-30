@@ -1,6 +1,11 @@
 const std = @import("std");
 
 pub const scaling = @import("benchmarks/scaling.zig");
+pub const runner = @import("benchmarks/runner.zig");
+pub const metrics = @import("benchmarks/metrics.zig");
+pub const cnot = @import("benchmarks/scaling_cnot_stress.zig");
+pub const hz = @import("benchmarks/scaling_hz_mixed.zig");
+pub const streaming_h = @import("benchmarks/scaling_streaming_h.zig");
 
 // =================
 // Core Benchmarking API

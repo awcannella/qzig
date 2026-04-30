@@ -1,5 +1,6 @@
 const std = @import("std");
 const qzig = @import("qzig");
+
 const scaling = qzig.scaling;
 
 pub fn main() !void {
@@ -10,7 +11,7 @@ pub fn main() !void {
 
     try scaling.runScalingBenchmark(
         allocator,
-        14, // max qubits
-        1000, // iterations
+        14,
+        1000,
     );
 }

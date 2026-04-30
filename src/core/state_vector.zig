@@ -26,8 +26,10 @@ pub const StateVector = struct {
 
         const size = @as(usize, 1) << @intCast(num_qubits);
 
-        const re = try allocator.alloc(f64, size);
-        const im = try allocator.alloc(f64, size);
+        const alignment = @as(std.mem.Alignment, @enumFromInt(5));
+
+        const re = try allocator.alignedAlloc(f64, alignment, size);
+        const im = try allocator.alignedAlloc(f64, alignment, size);
 
         @memset(re, 0.0);
         @memset(im, 0.0);
