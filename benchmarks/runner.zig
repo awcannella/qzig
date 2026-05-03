@@ -2,7 +2,6 @@ const std = @import("std");
 
 const StateVector = @import("../src/core/state_vector.zig").StateVector;
 const KernelBlock = @import("../src/core/kernel_block.zig").KernelBlock;
-const KernelTrace = @import("../src/core/kernel_types.zig").KernelTrace;
 const PermWorkspace = @import("../src/core/kernel_types.zig").PermWorkspace;
 const execute = @import("../src/core/executor.zig").execute;
 
@@ -11,7 +10,6 @@ pub fn runKernel(
     blocks: []const KernelBlock,
     q: u32,
     iterations: usize,
-    trace: *KernelTrace,
 ) !RunResult {
     const size = @as(usize, 1) << @intCast(q);
 
@@ -25,22 +23,41 @@ pub fn runKernel(
     defer allocator.free(workspace.tmp_re);
     defer allocator.free(workspace.tmp_im);
 
-    const start = std.time.nanoTimestamp();
+    // ------------------------------------------------
+    // ensure consistent initial state for warmup + run
+    // ------------------------------------------------
+    state.set_basis(0);
+
+    // ----------------------------
+    // warmup (stabilizes cache behavior)
+    // ----------------------------
+    const warmup_iters = @min(iterations, 10);
 
     var i: usize = 0;
+    while (i < warmup_iters) : (i += 1) {
+        execute(&state, blocks, &workspace);
+    }
+
+    // reset again so timing starts clean
+    state.set_basis(0);
+
+    // ----------------------------
+    // timed region
+    // ----------------------------
+    const start = std.time.nanoTimestamp();
+
+    i = 0;
     while (i < iterations) : (i += 1) {
-        execute(&state, blocks, &workspace, trace);
+        execute(&state, blocks, &workspace);
     }
 
     const end = std.time.nanoTimestamp();
 
     return .{
         .total_ns = end - start,
-        .trace = trace.*,
     };
 }
 
 pub const RunResult = struct {
     total_ns: i128,
-    trace: KernelTrace,
 };

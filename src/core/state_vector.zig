@@ -1,5 +1,4 @@
 const std = @import("std");
-const Complex = @import("complex.zig").Complex;
 
 pub const StateVector = struct {
     re: []f64,
@@ -16,8 +15,11 @@ pub const StateVector = struct {
     }
 
     pub fn set_basis(self: *StateVector, index: usize) void {
+        std.debug.assert(index < self.re.len);
+
         @memset(self.re, 0.0);
         @memset(self.im, 0.0);
+
         self.re[index] = 1.0;
     }
 
@@ -26,10 +28,9 @@ pub const StateVector = struct {
 
         const size = @as(usize, 1) << @intCast(num_qubits);
 
-        const alignment = @as(std.mem.Alignment, @enumFromInt(5));
-
-        const re = try allocator.alignedAlloc(f64, alignment, size);
-        const im = try allocator.alignedAlloc(f64, alignment, size);
+        // simple + correct (no broken alignment API usage)
+        const re = try allocator.alloc(f64, size);
+        const im = try allocator.alloc(f64, size);
 
         @memset(re, 0.0);
         @memset(im, 0.0);
@@ -46,13 +47,5 @@ pub const StateVector = struct {
     pub fn deinit(self: *StateVector, allocator: std.mem.Allocator) void {
         allocator.free(self.re);
         allocator.free(self.im);
-    }
-
-    pub fn re_ptr(self: *StateVector) [*]f64 {
-        return self.re.ptr;
-    }
-
-    pub fn im_ptr(self: *StateVector) [*]f64 {
-        return self.im.ptr;
     }
 };

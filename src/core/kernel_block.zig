@@ -14,7 +14,6 @@ pub const KernelBlock = struct {
     // METADATA
     // =========================================================
     qubit_mask: usize,
-    max_qubit: u8,
 
     // =========================================================
     // PAYLOAD
@@ -35,6 +34,7 @@ pub const KernelBlock = struct {
         x_masks: []const usize,
         cnot_masks: []const CNotMask,
         swap_masks: []const SwapMask,
+        perm_table: ?[]const usize = null,
     };
 
     pub const CNotMask = struct {

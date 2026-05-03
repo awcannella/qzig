@@ -16,28 +16,22 @@ pub fn execute(
     state: *StateVector,
     blocks: []const KernelBlock,
     workspace: *PermWorkspace,
-    trace: *KernelTrace,
 ) void {
     for (blocks) |b| {
         switch (b.data) {
             .perm => |p| {
-                trace.perm_ops += 1;
                 execute_perm(state, p, workspace);
             },
 
             .hadamard => |h| {
-                trace.hadamard_ops += h.targets.len;
                 execute_h(state, h);
             },
 
             .zphase => |z| {
-                trace.zphase_ops += z.targets.len;
                 execute_z(state, z);
             },
 
-            .scalar => {
-                trace.scalar_ops += 1;
-            },
+            .scalar => {},
         }
     }
 }
@@ -87,17 +81,14 @@ fn execute_h(state: *StateVector, h: KernelBlock.Hadamard) void {
 fn execute_z(state: *StateVector, z: KernelBlock.ZPhase) void {
     const len = state.len();
 
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        var flip = false;
+    for (0..len) |i| {
+        var mask: usize = 0;
 
         for (z.targets) |q| {
-            if ((i & (@as(usize, 1) << @intCast(q))) != 0) {
-                flip = !flip;
-            }
+            mask |= ((i >> @intCast(q)) & 1);
         }
 
-        if (flip) {
+        if (mask == 1) {
             state.re[i] = -state.re[i];
             state.im[i] = -state.im[i];
         }
@@ -156,19 +147,32 @@ fn execute_perm(
     std.debug.assert(tmp_re.len >= len);
     std.debug.assert(tmp_im.len >= len);
 
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        const j = apply_perm_ops(
-            i,
-            p.x_masks,
-            p.cnot_masks,
-            p.swap_masks,
-        );
+    if (p.perm_table) |tbl| {
+        std.debug.assert(tbl.len == len);
+        var i: usize = 0;
+        while (i < len) : (i += 1) {
+            tmp_re[tbl[i]] = state.re[i];
+            tmp_im[tbl[i]] = state.im[i];
+        }
+    } else {
+        var i: usize = 0;
+        while (i < len) : (i += 1) {
+            const j = apply_perm_ops(
+                i,
+                p.x_masks,
+                p.cnot_masks,
+                p.swap_masks,
+            );
 
-        tmp_re[j] = state.re[i];
-        tmp_im[j] = state.im[i];
+            tmp_re[j] = state.re[i];
+            tmp_im[j] = state.im[i];
+        }
     }
 
-    std.mem.copyForwards(f64, state.re, tmp_re);
-    std.mem.copyForwards(f64, state.im, tmp_im);
+    const old_re = state.re;
+    const old_im = state.im;
+    state.re = tmp_re[0..len];
+    state.im = tmp_im[0..len];
+    workspace.tmp_re = old_re;
+    workspace.tmp_im = old_im;
 }
