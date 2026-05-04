@@ -13,7 +13,7 @@ pub fn main() !void {
 
     std.debug.print("\n=== QUANTUM BENCH SUITE ===\n", .{});
 
-    try streaming_h.runStreamingHBenchmark(allocator, 14, 500);
-    try hz_mixed.runHZBenchmark(allocator, 14, 500);
-    try cnot_stress.runCNOTStressBenchmark(allocator, 14, 500);
+    try streaming_h.runStreamingHBenchmark(allocator, 20, 500);
+    try hz_mixed.runHZBenchmark(allocator, 20, 500);
+    try cnot_stress.runCNOTStressBenchmark(allocator, 20, 500);
 }

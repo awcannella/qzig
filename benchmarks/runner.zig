@@ -3,7 +3,7 @@ const std = @import("std");
 const StateVector = @import("../src/core/state_vector.zig").StateVector;
 const KernelBlock = @import("../src/core/kernel_block.zig").KernelBlock;
 const PermWorkspace = @import("../src/core/kernel_types.zig").PermWorkspace;
-const execute = @import("../src/core/executor.zig").execute;
+const execute = @import("../src/core/simd_executor.zig").execute;
 
 pub fn runKernel(
     allocator: std.mem.Allocator,
